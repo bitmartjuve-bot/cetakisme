@@ -1,45 +1,31 @@
-import 'dotenv/config';
-import { PrismaClient } from '@prisma/client';
-import { PrismaLibSql } from '@prisma/adapter-libsql';
-import path from 'path';
+import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+import pg from 'pg'
 
-// Fix untuk Turbopack/Windows: Jika DATABASE_URL terbaca sebagai string "undefined", hapus agar fallback bekerja
-if (process.env.DATABASE_URL === 'undefined' || process.env.DATABASE_URL === '') {
-  delete process.env.DATABASE_URL;
-}
+// Mengambil URL dari env atau hardcoded
+const connectionString = process.env.DATABASE_URL || "postgresql://postgres.xyxqajklkptowqbbijpv:Cetakismeorg1234*@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres"
 
-const getDatabaseUrl = () => {
-  const envUrl = process.env.DATABASE_URL;
-  if (envUrl && envUrl !== 'undefined' && envUrl !== '') {
-    return envUrl;
+console.log('Connecting to database with URL:', connectionString.split('@')[1]); // Log part of URL for debugging
+
+const pool = new pg.Pool({ 
+  connectionString,
+  ssl: {
+    rejectUnauthorized: false
   }
-  // Gunakan path absolut untuk dev.db
-  const dbPath = path.resolve(process.cwd(), 'dev.db').replace(/\\/g, '/');
-  return `file:${dbPath}`;
-};
-
-const url = getDatabaseUrl();
-
-// Force re-initialization in dev to clear broken state
-if (process.env.NODE_ENV !== 'production') {
-  (globalThis as any).prisma = undefined;
-}
-
-// Di Prisma 7, PrismaLibSql menerima Config object
-const adapter = new PrismaLibSql({ url });
-
+})
+const adapter = new PrismaPg(pool)
 
 const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
+  prisma: PrismaClient | undefined
+}
 
 export const prisma =
   globalForPrisma.prisma ??
   new PrismaClient({
     adapter,
-  });
+    log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+  })
 
+if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma;
-
-export default prisma;
+export default prisma

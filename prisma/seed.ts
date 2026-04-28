@@ -1,13 +1,20 @@
 import { PrismaClient } from '@prisma/client'
-import { PrismaLibSql } from '@prisma/adapter-libsql'
-import { createClient } from '@libsql/client'
 import bcrypt from 'bcryptjs'
 
-const adapter = new PrismaLibSql({ url: 'file:dev.db' })
+import "dotenv/config"
+import { PrismaPg } from '@prisma/adapter-pg'
+import pg from 'pg'
+
+// Inisialisasi Prisma Client dengan adapter PostgreSQL untuk Prisma 7
+const connectionString = `${process.env.DATABASE_URL}`
+const pool = new pg.Pool({ connectionString })
+const adapter = new PrismaPg(pool)
 const prisma = new PrismaClient({ adapter })
 
 async function main() {
-  // 0. Clear existing data
+  console.log('Starting seed...')
+
+  // 0. Menghapus data lama agar tidak terjadi duplikasi saat di-seed ulang
   await prisma.stockHistory.deleteMany()
   await prisma.transactionItem.deleteMany()
   await prisma.transaction.deleteMany()
@@ -20,6 +27,8 @@ async function main() {
   await prisma.product.deleteMany()
   await prisma.setting.deleteMany()
   await prisma.user.deleteMany()
+
+  console.log('Cleared existing data.')
 
   // 1. Seed Admin User
   const hashedPassword = await bcrypt.hash('admin123', 10)
@@ -82,7 +91,7 @@ async function main() {
     createdProducts.push(product)
   }
 
-  // 4. Seed Orders (1 online lunas, 1 online pending, 1 walk-in selesai)
+  // 4. Seed Orders
   // Order 1: Online Lunas
   await prisma.order.create({
     data: {
